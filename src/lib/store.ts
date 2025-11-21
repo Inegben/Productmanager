@@ -1,17 +1,19 @@
 import { create } from 'zustand';
-import { Goal, Initiative, Epic, Story } from '@/types';
+import { Goal, Initiative, Epic, Story, User } from '@/types';
 
 interface AppState {
     goals: Goal[];
     initiatives: Initiative[];
     epics: Epic[];
     stories: Story[];
+    users: User[];
 
     // Actions
     addGoal: (goal: Goal) => void;
     addInitiative: (initiative: Initiative) => void;
     addEpic: (epic: Epic) => void;
     addStory: (story: Story) => void;
+    addUser: (user: User) => void;
 
     updateStoryStatus: (storyId: string, status: Story['status']) => void;
 }
@@ -97,11 +99,20 @@ export const useStore = create<AppState>((set) => ({
             points: 2
         }
     ],
+    users: [
+        {
+            id: 'u-1',
+            name: 'Admin User',
+            email: 'admin@company.com',
+            avatar: 'AU'
+        }
+    ],
 
     addGoal: (goal) => set((state) => ({ goals: [...state.goals, goal] })),
     addInitiative: (initiative) => set((state) => ({ initiatives: [...state.initiatives, initiative] })),
     addEpic: (epic) => set((state) => ({ epics: [...state.epics, epic] })),
     addStory: (story) => set((state) => ({ stories: [...state.stories, story] })),
+    addUser: (user) => set((state) => ({ users: [...state.users, user] })),
 
     updateStoryStatus: (storyId, status) => set((state) => ({
         stories: state.stories.map((s) => s.id === storyId ? { ...s, status } : s)
