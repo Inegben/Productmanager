@@ -42,8 +42,8 @@ export const useStore = create<AppState>((set) => ({
             description: 'Enable SAML and OIDC for large clients',
             goalId: 'g-1',
             status: 'in-progress',
-            startDate: '2024-01-01',
-            endDate: '2024-03-31',
+            startDate: '2026-01-01',
+            endDate: '2026-03-31',
             ownerId: 'u-1'
         },
         {
@@ -52,8 +52,8 @@ export const useStore = create<AppState>((set) => ({
             description: 'Modernize the UX for iOS and Android',
             goalId: 'g-2',
             status: 'todo',
-            startDate: '2024-02-15',
-            endDate: '2024-06-30',
+            startDate: '2026-02-15',
+            endDate: '2026-06-30',
             ownerId: 'u-2'
         }
     ],
