@@ -13,7 +13,10 @@ import {
     Menu,
     X
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -27,6 +30,39 @@ const navigation = [
 export function AppShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const fetchData = useStore((state) => state.fetchData);
+    const router = useRouter();
+    const [user, setUser] = useState<any>(null);
+
+    useEffect(() => {
+        // Check auth
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (!user && pathname !== '/login') {
+                router.push('/login');
+            } else {
+                setUser(user);
+                fetchData(); // Load data on mount
+            }
+        });
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_OUT') {
+                router.push('/login');
+                setUser(null);
+            } else if (session?.user) {
+                setUser(session.user);
+                fetchData();
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, [pathname, router, fetchData]);
+
+    if (pathname === '/login') {
+        return <>{children}</>;
+    }
+
+    if (!user) return null; // Or a loading spinner
 
     return (
         <div className="flex min-h-screen flex-col md:flex-row">
@@ -45,9 +81,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     sidebarOpen ? "translate-x-0" : "-translate-x-full"
                 )}
             >
-                <div className="flex h-16 items-center border-b px-6">
+                <div className="flex h-16 items-center border-b px-6 justify-between">
                     <span className="text-xl font-bold text-primary">ProductManager</span>
                 </div>
+
+                <div className="p-4 border-b">
+                    <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                            {user.email?.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div className="overflow-hidden">
+                            <p className="text-sm font-medium truncate">{user.email}</p>
+                            <button
+                                onClick={() => supabase.auth.signOut()}
+                                className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                                Sign out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <nav className="flex flex-col gap-1 p-4">
                     {navigation.map((item) => {
                         const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));

@@ -61,6 +61,7 @@ This linkage ensures that every line of code (Story) can be traced back to a str
 - **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
 - **Styling**: [TailwindCSS](https://tailwindcss.com/)
 - **Icons**: [Lucide React](https://lucide.dev/)
+- **Backend**: [Supabase](https://supabase.com/) (PostgreSQL + Auth)
 - **Deployment**: Vercel
 
 ## 🚀 Getting Started
@@ -75,7 +76,17 @@ This linkage ensures that every line of code (Story) can be traced back to a str
    npm install
    ```
 
-3. **Run the development server**
+3. **Configure Environment Variables**
+   Create a `.env.local` file in the root directory and add your Supabase credentials:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=your_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+   ```
+
+4. **Setup Database**
+   Run the SQL script located in `schema.sql` in your Supabase SQL Editor to create the necessary tables and policies.
+
+5. **Run the development server**
    ```bash
    npm run dev
    ```

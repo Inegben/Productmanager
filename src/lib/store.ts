@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Goal, Initiative, Epic, Story, User } from '@/types';
+import { supabase } from './supabase';
 
 interface AppState {
     goals: Goal[];
@@ -7,114 +8,189 @@ interface AppState {
     epics: Epic[];
     stories: Story[];
     users: User[];
+    isLoading: boolean;
+    error: string | null;
 
     // Actions
-    addGoal: (goal: Goal) => void;
-    addInitiative: (initiative: Initiative) => void;
-    addEpic: (epic: Epic) => void;
-    addStory: (story: Story) => void;
-    addUser: (user: User) => void;
+    fetchData: () => Promise<void>;
 
-    updateStoryStatus: (storyId: string, status: Story['status']) => void;
+    addGoal: (goal: Omit<Goal, 'id' | 'ownerId'>) => Promise<void>;
+    addInitiative: (initiative: Omit<Initiative, 'id' | 'ownerId'>) => Promise<void>;
+    addEpic: (epic: Omit<Epic, 'id' | 'ownerId'>) => Promise<void>;
+    addStory: (story: Omit<Story, 'id' | 'assigneeId'>) => Promise<void>;
+    addUser: (user: User) => void; // Kept as local/mock for now as auth handles users
+
+    updateStoryStatus: (storyId: string, status: Story['status']) => Promise<void>;
 }
 
-export const useStore = create<AppState>((set) => ({
-    goals: [
-        {
-            id: 'g-1',
-            title: 'Market Dominance',
-            description: 'Become the #1 provider in the enterprise sector',
-            progress: 35,
-            color: 'bg-blue-500',
-            ownerId: 'u-1'
-        },
-        {
-            id: 'g-2',
-            title: 'User Delight',
-            description: 'Achieve NPS of 70+',
-            progress: 60,
-            color: 'bg-green-500',
-            ownerId: 'u-1'
-        }
-    ],
-    initiatives: [
-        {
-            id: 'i-1',
-            title: 'Enterprise SSO',
-            description: 'Enable SAML and OIDC for large clients',
-            goalId: 'g-1',
-            status: 'in-progress',
-            startDate: '2026-01-01',
-            endDate: '2026-03-31',
-            ownerId: 'u-1'
-        },
-        {
-            id: 'i-2',
-            title: 'Mobile App Redesign',
-            description: 'Modernize the UX for iOS and Android',
-            goalId: 'g-2',
-            status: 'todo',
-            startDate: '2026-02-15',
-            endDate: '2026-06-30',
-            ownerId: 'u-2'
-        }
-    ],
-    epics: [
-        {
-            id: 'e-1',
-            title: 'Authentication Service',
-            description: 'Backend changes for SSO',
-            initiativeId: 'i-1',
-            status: 'in-progress',
-            priority: 'high',
-            ownerId: 'u-1'
-        }
-    ],
-    stories: [
-        {
-            id: 's-1',
-            title: 'Implement SAML validation',
-            description: 'Validate assertions from IdP',
-            epicId: 'e-1',
-            status: 'done',
-            priority: 'critical',
-            points: 5
-        },
-        {
-            id: 's-2',
-            title: 'Configure OIDC provider',
-            description: 'Setup Auth0 connection',
-            epicId: 'e-1',
-            status: 'in-progress',
-            priority: 'high',
-            points: 3
-        },
-        {
-            id: 's-3',
-            title: 'Update login UI',
-            description: 'Add "Login with SSO" button',
-            epicId: 'e-1',
-            status: 'todo',
-            priority: 'medium',
-            points: 2
-        }
-    ],
-    users: [
-        {
-            id: 'u-1',
-            name: 'Admin User',
-            email: 'admin@company.com',
-            avatar: 'AU'
-        }
-    ],
+export const useStore = create<AppState>((set, get) => ({
+    goals: [],
+    initiatives: [],
+    epics: [],
+    stories: [],
+    users: [],
+    isLoading: false,
+    error: null,
 
-    addGoal: (goal) => set((state) => ({ goals: [...state.goals, goal] })),
-    addInitiative: (initiative) => set((state) => ({ initiatives: [...state.initiatives, initiative] })),
-    addEpic: (epic) => set((state) => ({ epics: [...state.epics, epic] })),
-    addStory: (story) => set((state) => ({ stories: [...state.stories, story] })),
+    fetchData: async () => {
+        set({ isLoading: true, error: null });
+        try {
+            const [goalsRes, initiativesRes, epicsRes, storiesRes, profilesRes] = await Promise.all([
+                supabase.from('goals').select('*'),
+                supabase.from('initiatives').select('*'),
+                supabase.from('epics').select('*'),
+                supabase.from('stories').select('*'),
+                supabase.from('profiles').select('*')
+            ]);
+
+            if (goalsRes.error) throw goalsRes.error;
+            if (initiativesRes.error) throw initiativesRes.error;
+            if (epicsRes.error) throw epicsRes.error;
+            if (storiesRes.error) throw storiesRes.error;
+
+            // Map DB snake_case to camelCase if needed, or just rely on JS handling it if we typed it right.
+            // Our types use camelCase, DB uses snake_case. We need to map.
+            // Actually, Supabase returns data as is. We should probably use a transformer or update types.
+            // For speed, I'll map manually here.
+
+            const mapGoal = (g: any): Goal => ({ ...g, ownerId: g.owner_id });
+            const mapInitiative = (i: any): Initiative => ({ ...i, goalId: i.goal_id, startDate: i.start_date, endDate: i.end_date, ownerId: i.owner_id });
+            const mapEpic = (e: any): Epic => ({ ...e, initiativeId: e.initiative_id, ownerId: e.owner_id });
+            const mapStory = (s: any): Story => ({ ...s, epicId: s.epic_id, assigneeId: s.assignee_id });
+            const mapUser = (u: any): User => ({ id: u.id, name: u.full_name || u.email, email: u.email, avatar: u.avatar_url || 'U' });
+
+            set({
+                goals: (goalsRes.data || []).map(mapGoal),
+                initiatives: (initiativesRes.data || []).map(mapInitiative),
+                epics: (epicsRes.data || []).map(mapEpic),
+                stories: (storiesRes.data || []).map(mapStory),
+                users: (profilesRes.data || []).map(mapUser),
+                isLoading: false
+            });
+        } catch (e: any) {
+            console.error('Error fetching data:', e);
+            set({ error: e.message, isLoading: false });
+        }
+    },
+
+    addGoal: async (goal) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase.from('goals').insert({
+            title: goal.title,
+            description: goal.description,
+            progress: goal.progress,
+            color: goal.color,
+            owner_id: user.id
+        }).select().single();
+
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        set((state) => ({ goals: [...state.goals, { ...data, ownerId: data.owner_id }] }));
+    },
+
+    addInitiative: async (initiative) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase.from('initiatives').insert({
+            title: initiative.title,
+            description: initiative.description,
+            goal_id: initiative.goalId,
+            status: initiative.status,
+            start_date: initiative.startDate,
+            end_date: initiative.endDate,
+            owner_id: user.id
+        }).select().single();
+
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        set((state) => ({
+            initiatives: [...state.initiatives, {
+                ...data,
+                goalId: data.goal_id,
+                startDate: data.start_date,
+                endDate: data.end_date,
+                ownerId: data.owner_id
+            }]
+        }));
+    },
+
+    addEpic: async (epic) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase.from('epics').insert({
+            title: epic.title,
+            description: epic.description,
+            initiative_id: epic.initiativeId,
+            status: epic.status,
+            priority: epic.priority,
+            owner_id: user.id
+        }).select().single();
+
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        set((state) => ({
+            epics: [...state.epics, {
+                ...data,
+                initiativeId: data.initiative_id,
+                ownerId: data.owner_id
+            }]
+        }));
+    },
+
+    addStory: async (story) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase.from('stories').insert({
+            title: story.title,
+            description: story.description,
+            epic_id: story.epicId,
+            status: story.status,
+            priority: story.priority,
+            points: story.points,
+            assignee_id: user.id
+        }).select().single();
+
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        set((state) => ({
+            stories: [...state.stories, {
+                ...data,
+                epicId: data.epic_id,
+                assigneeId: data.assignee_id
+            }]
+        }));
+    },
+
     addUser: (user) => set((state) => ({ users: [...state.users, user] })),
 
-    updateStoryStatus: (storyId, status) => set((state) => ({
-        stories: state.stories.map((s) => s.id === storyId ? { ...s, status } : s)
-    })),
+    updateStoryStatus: async (storyId, status) => {
+        // Optimistic update
+        set((state) => ({
+            stories: state.stories.map((s) => s.id === storyId ? { ...s, status } : s)
+        }));
+
+        const { error } = await supabase.from('stories').update({ status }).eq('id', storyId);
+
+        if (error) {
+            console.error(error);
+            // Revert if error (simplified, ideally we'd refetch or rollback)
+        }
+    },
 }));
